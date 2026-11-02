@@ -1,0 +1,223 @@
+计算机系统设计实验
+Windows + WSL2 继续操作记录
+
+更新时间：2026-09-20
+当前用户：ljy
+当前工作目录：F:\桌面\计算机系统设计实验
+
+一、实验目标
+
+在本机 Windows 上使用 WSL2 + Ubuntu 22.04，完成 PipeANN-Filter 和 GateANN 的统一数据性能测试，并生成实验报告 PDF。
+
+正式实验需要比较：
+- Recall@10
+- 查询延迟
+- QPS
+- 逻辑 I/O
+- 峰值 RSS
+- 索引大小
+- 系统内部指标
+
+实验要求和参数已经记录在：
+- 实验执行方案与环境判断.txt
+
+二、已经确认的环境信息
+
+Windows：
+- Windows 10 Pro
+- WSL 组件版本约为 2.6.1.0
+- 当前 Windows PowerShell 曾出现 WSL/EnumerateDistros/Service/E_ACCESSDENIED
+- 当前尚未确认 Ubuntu 发行版已经安装
+
+本机磁盘：
+- C: 总容量约 118.02 GB，剩余约 12.12 GB
+- F: 总容量约 244.14 GB，剩余约 82.1 GB
+- C: 对应 INTEL SSDPEBKF128G7，BusType=NVMe，是 SSD
+- F: 对应 WDC WD10SPZX-22Z10T1，MediaType=HDD，是机械硬盘
+
+关键结论：
+- 正式实验不能使用 F: 盘作为实验数据和索引所在磁盘。
+- WSL2 Ubuntu 应安装到 C: 盘 SSD，实验文件应放在 Ubuntu 内部的 Linux 文件系统，例如 /home/用户名/fvs-course-lab。
+- 不要把实验目录放在 /mnt/c 或 /mnt/f。
+- F: 盘只用于保存报告草稿、代码备份、图片和日志副本。
+- C: 当前剩余空间不足。建议清理到至少 40 GB 可用，最低不要低于 25 GB。
+
+三、下次开机后的总体顺序
+
+步骤 1：先确认 C 盘空间，不安装、不下载实验数据
+
+打开管理员 PowerShell，执行：
+
+Get-Volume -DriveLetter C
+
+如果 C: 剩余空间还不到 25 GB，不要安装 Ubuntu 或下载课程数据。
+目标是清理到至少 40 GB 可用。
+
+步骤 2：只读统计用户目录大小
+
+管理员 PowerShell 执行以下命令。此命令只统计大小，不删除文件：
+
+Get-ChildItem C:\Users\Admin -Force -Directory -ErrorAction SilentlyContinue |
+    ForEach-Object {
+        $size = (Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue |
+            Measure-Object Length -Sum).Sum
+        [PSCustomObject]@{
+            Name = $_.Name
+            SizeGB = [math]::Round($size / 1GB, 2)
+            Path = $_.FullName
+        }
+    } |
+    Sort-Object SizeGB -Descending
+
+也可以查看用户目录下较大的一级文件：
+
+Get-ChildItem C:\Users\Admin -Force -ErrorAction SilentlyContinue |
+    Sort-Object Length -Descending |
+    Select-Object Name,Length,FullName
+
+步骤 3：安全清理空间
+
+优先处理：
+- 下载目录中的安装包、压缩包和大型文件
+- 视频、虚拟机镜像、旧项目和不再需要的构建产物
+- 回收站
+- Windows 设置中的临时文件
+
+个人文件可以移动到 F:，但不要把实验正式数据放到 F:。
+
+Windows 临时文件入口：
+设置 -> 系统 -> 存储 -> 临时文件
+
+不要手动删除：
+- C:\Windows
+- C:\Program Files
+- C:\Program Files (x86)
+- C:\Users\Admin\AppData 中不确定用途的目录
+- 任何不确定用途的系统文件
+
+清理后再次执行：
+
+Get-Volume -DriveLetter C
+
+只有 C: 至少有 25 GB，最好有 40 GB 可用空间，才继续下一步。
+
+步骤 4：检查和启用 WSL2
+
+管理员 PowerShell 执行：
+
+wsl.exe --status
+wsl.exe --version
+
+如果 WSL 组件未启用，执行：
+
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+wsl.exe --set-default-version 2
+wsl.exe --shutdown
+Restart-Computer
+
+如果需要重启，重启后再继续。
+
+步骤 5：确认 WSL 发行版状态
+
+wsl.exe --list --verbose
+wsl.exe --list --online
+
+期望最终能正常列出 Ubuntu，并且 Ubuntu 的 VERSION 为 2。
+
+如果仍然出现：
+
+Wsl/EnumerateDistros/Service/E_ACCESSDENIED
+
+不要执行注销发行版、删除目录或反复安装命令。记录完整错误输出，下一次继续排查 WSL 服务和权限。
+
+步骤 6：安装 Ubuntu 22.04
+
+由于 C: 是 SSD，Ubuntu 可以安装到默认 WSL 位置。
+如果系统支持 --location，也可以明确放到 C:\WSL\Ubuntu2204。
+
+管理员 PowerShell 优先尝试：
+
+New-Item -ItemType Directory -Force C:\WSL
+wsl.exe --install --distribution Ubuntu-22.04 --location C:\WSL\Ubuntu2204 --no-launch
+
+若下载失败：
+
+wsl.exe --install --web-download --distribution Ubuntu-22.04 --location C:\WSL\Ubuntu2204 --no-launch
+
+安装后检查：
+
+wsl.exe --list --verbose
+
+启动：
+
+wsl.exe -d Ubuntu-22.04
+
+首次启动时创建 Linux 用户名和密码。输入 Linux 密码时终端不会显示字符，这是正常现象。
+
+步骤 7：在 Ubuntu 内确认实验目录位置
+
+进入 Ubuntu 后执行：
+
+mkdir -p ~/fvs-course-lab
+cd ~/fvs-course-lab
+pwd
+findmnt -T "$HOME"
+df -hT "$HOME"
+
+正确路径应该类似：
+
+/home/用户名/fvs-course-lab
+
+不要使用：
+
+/mnt/c/...
+/mnt/f/...
+
+也不要使用 /dev/shm，因为它是内存盘，不是 SSD。
+
+步骤 8：先检查 Ubuntu 内资源，再获取课程仓库
+
+在 Ubuntu 内执行：
+
+cat /etc/os-release
+uname -m
+nproc
+free -h
+df -hT "$HOME"
+findmnt -T "$HOME"
+
+确认 C: 对应的 WSL2 Linux 文件系统空间足够后，再开始：
+- 获取课程仓库
+- 阅读 README
+- 阅读最新版报告模板
+- 按仓库说明安装依赖
+
+暂时不要自行安装无关依赖，不要修改 Windows 全局配置，不要修改 Linux 内核参数。
+
+四、正式实验前的安全要求
+
+- 当前电脑是个人电脑，不会影响实验室其他用户。
+- 仍然不要把实验目录放在 F: HDD。
+- 两套系统必须使用相同 WSL2 环境和相同 SSD。
+- 正式实验前先做 Debug 小规模索引和正确性检查。
+- Debug 正确性检查通过后，才做 Formal 实验。
+- 保留 results.csv、environment.txt、command.json 和 run.log。
+- 不伪造实验结果；所有报告数据必须来自实际运行。
+
+五、当前暂停位置
+
+当前停在：
+- 已确认 C: 是 SSD
+- 已确认 F: 是 HDD
+- C: 只有约 12.12 GB 可用
+- 尚未开始清理 C:
+- 尚未安装 Ubuntu
+- 尚未下载课程仓库
+- 尚未运行实验
+
+下次继续时的第一条命令：
+
+Get-Volume -DriveLetter C
+
+先把 C: 最新剩余空间发给助手，再继续后续步骤。

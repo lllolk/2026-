@@ -1,0 +1,193 @@
+计算机系统设计实验
+基于 SSD 的过滤向量检索系统性能测试与设计比较
+
+一、课程任务摘要
+
+1. 使用同一台机器、同一 SSD、统一数据集比较 PipeANN-Filter 和 GateANN。
+2. 测试 Recall@10、查询延迟、QPS、逻辑 I/O、峰值 RSS、索引大小及系统内部指标。
+3. 完成两张必做图：
+   - High workload 下的 Recall@10 - Mean Latency 曲线。
+   - Low/Medium/High 选择率下的 Recall、延迟和 I/O 对比图。
+4. 选择其中一套系统分析潜在瓶颈，并提出带有证据、机制、代价和验证方案的优化方向。
+5. 最终提交实验报告 PDF，并保留结果 CSV、环境信息、命令和日志。
+
+二、课程固定实验参数
+
+threads=1
+beamwidth=8
+K=10
+mem_L=0
+cache budget=0
+GateANN FullAdj neighbors=32
+正式实验重复次数=3
+
+High workload 搜索预算：
+PipeANN: L=20, 40, 80
+GateANN:  L=160, 320, 640
+
+选择率敏感性测试：
+PipeANN: L=40
+GateANN:  L=320
+
+三、执行阶段
+
+阶段 0：环境检查
+- 检查 Windows、WSL、Linux 发行版、磁盘空间和 CPU/内存。
+- 检查实验仓库是否已经存在。
+- 不在原生 Windows 上直接编译或运行正式实验。
+
+阶段 1：准备 Linux 环境
+- 优先使用已有的 Ubuntu 22.04/24.04 WSL2。
+- 如果本机没有可用 WSL，优先使用实验室 Linux 服务器或云服务器。
+- 双系统不是首选，因为安装和磁盘分区成本较高，且会影响日常 Windows 使用。
+- 4090 显卡对本实验不是关键资源；实验主要考察 SSD I/O、CPU、内存和查询延迟。
+
+阶段 2：获取并验证仓库
+- 获取课程仓库。
+- 阅读 README、实验说明、结果分析指南和最新版实验报告模板。
+- 检查固定版本、脚本、数据、索引和依赖。
+- 记录源码提交、系统环境和运行命令。
+
+阶段 3：Debug 实验
+- 两套系统各构建一次 10 万向量 Debug 索引。
+- 执行 High workload 查询。
+- 运行统一正确性检查。
+- 两套系统都通过正确性检查后再进行 Formal 实验。
+
+阶段 4：Formal 实验
+- 使用课程提供的 100 万向量预构建索引，不重新构建。
+- 两套系统分别运行 High workload 和 Low/Medium/High 选择率实验。
+- 每个正式配置重复 3 轮，共生成 30 行结果。
+- 保存 results.csv、environment.txt、command.json 和 run.log。
+
+阶段 5：结果分析
+- 使用三轮数据计算中位数、最小值和最大值。
+- 绘图时使用 mean_latency_us，不能用 elapsed_seconds 代替查询延迟。
+- 按 Recall 相近的运行点比较两套系统，不能只比较相同的 L。
+- 统一索引大小、峰值内存和 I/O 的单位。
+- 分析 PipeANN 过滤路由，或 GateANN 的 FilterSkips、Tunnel time、Process time。
+
+阶段 6：报告
+- 按最新版 docs/实验报告模板.md 整理报告。
+- 报告至少包含：环境、两套系统设计说明、实验方法、两张必做图、结果解释、资源权衡、机制与瓶颈分析、优化方向和实验总结。
+- 生成 PDF，并检查图表、单位、三轮范围、实验 ID 和复现命令。
+
+四、当前 Windows 单系统的可行性判断
+
+1. 原生 Windows：
+不建议直接完成。课程依赖 Linux 编译工具、Linux AIO/异步 I/O、Linux 进程与内存统计，以及课程脚本的 Linux 环境假设。即使部分代码能编译，Windows 下的 I/O 和时延结果也不具备可比性。
+
+2. WSL2：
+可以作为首选本机方案，但必须确认 WSL2 和 Ubuntu 发行版可用，并且实验数据和索引位于 WSL2 能稳定访问的 SSD 路径。需要注意 WSL2 的文件系统路径、I/O 性能、内存限制和脚本兼容性。
+
+3. 实验室 Linux 服务器：
+通常是最稳妥的方案，尤其适合课程提供了固定索引和脚本的情况。应确认服务器有独占或可控的 SSD、至少 16 GiB 可用内存、约 25 GiB 可用空间，并允许安装依赖和运行长时间实验。
+
+4. 双系统：
+只有在 WSL2 不可用且没有合适服务器时再考虑。它更接近原生 Linux，但安装风险、磁盘分区和切换成本较高，不是当前第一选择。
+
+5. 4090 显卡：
+本实验核心指标是 SSD I/O、CPU 查询处理、内存和延迟，通常不依赖 GPU。4090 不会自动解决 Linux 环境、SSD 或内存问题。除非课程仓库明确提供 GPU 路径，否则不应把 GPU 作为环境选择依据。
+
+五、当前诊断结果
+
+- 操作系统：Windows。
+- 当前工作目录：F:\桌面\计算机系统设计实验。
+- 当前目录尚未发现课程仓库文件。
+- wsl 命令存在，但当前返回 WSL/EnumerateDistros/Service/E_ACCESSDENIED，尚未确认 WSL 服务和 Ubuntu 发行版可用。
+- WSL 组件版本可识别为 2.6.1.0；Windows 版本为 Windows 10 Pro。
+- F: 盘约 244.14 GiB，总剩余空间约 82.10 GiB；空间满足课程建议的约 25 GiB。
+- 系统服务中 WslService 为 Running，LxssManager 为 Stopped；WSL 发行版列表仍返回 E_ACCESSDENIED。
+- 未发现可识别的 Ubuntu、Debian、Kali 或 SUSE 应用包。
+- 尚未执行安装、下载、编译或正式实验。
+
+六、建议决策
+
+先检查并尝试恢复 WSL2；如果没有 Ubuntu、没有管理员权限，或 WSL 的 SSD I/O 表现不稳定，则转移到实验室 Linux 服务器。
+不建议现在安装双系统。
+在 Linux 环境确定后，再开始下载仓库和实验数据。
+
+七、当前环境决策结论
+
+本机具备足够磁盘空间，也具备 WSL 组件，但当前不能直接完成实验，因为没有可用的 Linux 发行版且 WSL 服务访问被拒绝。
+
+优先级建议：
+1. 首选实验室 Linux 服务器：要求 Ubuntu 22.04/24.04、至少 16 GiB 可用内存、约 25 GiB 可用 SSD 空间、可安装依赖，并尽量使用独占 SSD。
+2. 若必须在本机完成，请让管理员修复或启用 WSL2，并安装 Ubuntu 22.04/24.04；安装完成后先运行小规模 Debug 实验和 I/O 检查。
+3. 不建议为了本实验立即安装双系统。只有没有可用服务器、管理员无法启用 WSL 且必须本地原生 Linux 时，才考虑双系统。
+4. 4090 显卡不是本实验的关键资源。除非仓库明确要求 GPU，否则服务器是否有 4090 不如 SSD、CPU、内存和权限重要。
+
+八、下一步所需条件
+
+- 如果使用实验室服务器：提供 SSH 地址、用户名、端口和工作目录；密码或私钥不要写入报告文件，可通过安全方式使用。
+- 如果继续使用本机：需要管理员安装/启用 Ubuntu WSL2，并确认执行 wsl -l -v 能列出 Ubuntu 且 VERSION 为 2。
+
+九、本机 WSL2 实施步骤
+
+前置条件：
+- F: 盘必须确认是 SSD/NVMe，不能只看剩余空间。
+- F: 盘建议保留至少 40 GiB 可用空间；实验数据和索引放入 WSL2 的 Linux 文件系统。
+- 不要把实验工作目录放在 /mnt/c 或 /mnt/f，这些路径是 Windows 文件系统挂载点。
+
+步骤 1：在管理员 PowerShell 中确认 F: 盘
+
+Get-Volume -DriveLetter F
+Get-Partition -DriveLetter F | Get-Disk | Select-Object Number,FriendlyName,BusType,MediaType,Size
+Get-PhysicalDisk | Select-Object FriendlyName,MediaType,BusType,Size,HealthStatus
+
+只有确认 F: 对应磁盘为 SSD/NVMe 后，才继续使用 F: 存放 WSL2 虚拟磁盘。
+
+步骤 2：在管理员 PowerShell 中启用 WSL2 组件
+
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+wsl.exe --set-default-version 2
+wsl.exe --shutdown
+Restart-Computer
+
+如果命令提示需要重启，先重启 Windows，再继续。
+
+步骤 3：重启后检查 WSL
+
+wsl.exe --status
+wsl.exe --version
+wsl.exe --list --online
+
+步骤 4：在管理员 PowerShell 中把 Ubuntu 22.04 安装到 F:
+
+New-Item -ItemType Directory -Force F:\WSL
+wsl.exe --install --distribution Ubuntu-22.04 --location F:\WSL\Ubuntu2204 --no-launch
+
+如果下载失败，可以尝试：
+
+wsl.exe --install --web-download --distribution Ubuntu-22.04 --location F:\WSL\Ubuntu2204 --no-launch
+
+然后确认：
+
+wsl.exe --list --verbose
+wsl.exe -d Ubuntu-22.04
+
+首次进入 Ubuntu 时创建 Linux 用户名和密码。Linux 密码输入时不会显示字符，这是正常行为。
+
+步骤 5：在 Ubuntu 内确认工作目录位于 Linux 文件系统
+
+pwd
+findmnt -T "$HOME"
+df -hT "$HOME"
+mkdir -p ~/fvs-course-lab
+cd ~/fvs-course-lab
+
+工作路径应类似 /home/用户名/fvs-course-lab，而不是 /mnt/f/...。
+
+步骤 6：只在 Ubuntu 可用且 F: 为 SSD 后，再准备实验依赖
+
+先阅读课程仓库 README 和脚本，再按仓库要求安装依赖。不要预先修改 Windows 全局配置、Linux 内核参数或服务器设置。
+
+十、WSL2 注意事项
+
+- 这台实验是 SSD I/O 对比实验，F: 的物理介质必须确认是 SSD/NVMe。
+- WSL2 的虚拟磁盘文件可以放在 F:，但实验文件应放在 Ubuntu 的 /home 或其他 Linux 路径中。
+- 不使用 /dev/shm 作为实验目录，因为它是内存盘，不是 SSD。
+- 不需要为本实验配置 4090；实验主要使用 CPU、内存和 SSD。
+- 暂不设置 .wslconfig 的内存和 CPU 限制，先确认本机硬件和 Ubuntu 可用资源。
+- 正式实验前要记录 WSL2、Ubuntu、Windows、CPU、内存和磁盘信息，并在报告中说明使用 WSL2。

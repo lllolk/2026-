@@ -1,0 +1,36 @@
+{
+  "system": "gateann",
+  "tier": "debug_100000",
+  "bucket": "high",
+  "dataset": {
+    "base_size": 100000,
+    "dimension": 192,
+    "metadata_columns": 200386,
+    "metadata_nnz": 1087574,
+    "workload_dir": "/root/fvs-course-lab/datasets/yfcc_course_v1/debug_100000/workloads/high",
+    "query_count": 200,
+    "ground_truth_k": 100
+  },
+  "command": [
+    "/root/fvs-course-lab/systems/GateANN-public/build/tests/search_disk_index_yfcc",
+    "uint8",
+    "/root/fvs-course-lab/course_runs/indices/gateann/debug_100000/yfcc",
+    "1",
+    "8",
+    "/root/fvs-course-lab/datasets/yfcc_course_v1/debug_100000/workloads/high/query.u8bin",
+    "/root/fvs-course-lab/datasets/yfcc_course_v1/debug_100000/base.metadata.spmat",
+    "/root/fvs-course-lab/datasets/yfcc_course_v1/debug_100000/workloads/high/query.metadata.spmat",
+    "/root/fvs-course-lab/datasets/yfcc_course_v1/debug_100000/workloads/high/ground_truth.ids.ibin",
+    "10",
+    "l2",
+    "pq",
+    "8",
+    "0",
+    "0",
+    "32",
+    "320"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 8.768494290998206,
+  "peak_rss_kb": 126252
+}
